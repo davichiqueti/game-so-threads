@@ -34,24 +34,9 @@ GameState game_state;
 
 std::vector<Bullet> bullets;
 
+// TODO: Move helicopter object logic to
 void *helicopter_func(void *arg) {
     Helicopter *helicopter = (Helicopter *)arg;
-    return nullptr;
-}
-
-void *bullets_manager_func(void *) {
-    while (game_state == GAME_RUNNING) {
-        // Moving all active bullets
-        pthread_mutex_lock(&bullets_mutex);
-        for (int i = bullets.size() - 1; i >= 0; --i) {
-            bullets[i].position.y -= bullets[i].speed;
-            if (bullets[i].position.y <= 0) {
-                bullets.erase(bullets.begin() + i);
-            }
-        }
-        pthread_mutex_unlock(&bullets_mutex);
-        usleep(16000);
-    }
     return nullptr;
 }
 
@@ -82,6 +67,23 @@ void *shooter_func(void *arg) {
 		}
 	}
 	return nullptr;
+}
+
+
+void *bullets_manager_func(void *) {
+    while (game_state == GAME_RUNNING) {
+        // Moving all active bullets
+        pthread_mutex_lock(&bullets_mutex);
+        for (int i = bullets.size() - 1; i >= 0; --i) {
+            bullets[i].position.y -= bullets[i].speed;
+            if (bullets[i].position.y <= 0) {
+                bullets.erase(bullets.begin() + i);
+            }
+        }
+        pthread_mutex_unlock(&bullets_mutex);
+        usleep(16000);
+    }
+    return nullptr;
 }
 
 void showGameMessage(GameState final_state) {
