@@ -85,137 +85,99 @@ void *shooter_func(void *arg) {
 }
 
 void showGameMessage(GameState final_state) {
-    // Configurações da janela de mensagem
     const int MSG_WINDOW_W = 400;
     const int MSG_WINDOW_H = 200;
-    
+
     sf::RenderWindow messageWindow(
         sf::VideoMode(MSG_WINDOW_W, MSG_WINDOW_H), 
         "Game Result",
         sf::Style::Titlebar | sf::Style::Close
     );
-    
-    // Centralizar janela na tela
+
     messageWindow.setPosition(
         sf::Vector2i(
             (sf::VideoMode::getDesktopMode().width - MSG_WINDOW_W) / 2,
             (sf::VideoMode::getDesktopMode().height - MSG_WINDOW_H) / 2
         )
     );
-    
-    // Carregar fonte
+
     sf::Font font;
     if (!font.loadFromFile("assets/fonts/OpenSans-Regular.ttf")) {
-        // Fallback para fonte padrão do sistema se não encontrar
         std::cerr << "Warning: Could not load font, using default\n";
     }
     
-    // Configurar textos
-    sf::Text titleText, messageText, instructionText;
+    sf::Text titleText, messageText;
     
-    // Título
     titleText.setFont(font);
     titleText.setCharacterSize(24);
     titleText.setFillColor(sf::Color::White);
     titleText.setStyle(sf::Text::Bold);
     
-    // Mensagem principal
     messageText.setFont(font);
     messageText.setCharacterSize(16);
     messageText.setFillColor(sf::Color::White);
-    
-    // Instrução
-    instructionText.setFont(font);
-    instructionText.setCharacterSize(12);
-    instructionText.setFillColor(sf::Color::Yellow);
-    instructionText.setString("Press SPACE to close or ESC to exit");
-    
-    // Definir conteúdo baseado no estado do jogo
+
     sf::Color backgroundColor;
     switch (final_state) {
         case GAME_WIN:
             titleText.setString("VICTORY!");
             titleText.setFillColor(sf::Color::Green);
             messageText.setString("Congratulations!\nAll soldiers were successfully rescued!");
-            backgroundColor = sf::Color(0, 100, 0, 200); // Verde escuro
+            backgroundColor = sf::Color(0, 100, 0, 200);
             break;
-            
         case GAME_OVER_HELICOPTER_SHOOTED:
             titleText.setString("GAME OVER");
             titleText.setFillColor(sf::Color::Red);
             messageText.setString("Mission Failed!\nThe helicopter was shot down by enemy fire.");
-            backgroundColor = sf::Color(100, 0, 0, 200); // Vermelho escuro
+            backgroundColor = sf::Color(100, 0, 0, 200);
             break;
-            
         case GAME_OVER_HELICOPTER_COLLIDED:
             titleText.setString("GAME OVER");
             titleText.setFillColor(sf::Color::Red);
             messageText.setString("Mission Failed!\nThe helicopter collided with an obstacle.");
             backgroundColor = sf::Color(100, 0, 0, 200);
             break;
-            
         case GAME_OVER_HELICOPTER_TOO_HIGH:
             titleText.setString("GAME OVER");
             titleText.setFillColor(sf::Color::Red);
             messageText.setString("Mission Failed!\nThe helicopter flew too high and was lost.");
             backgroundColor = sf::Color(100, 0, 0, 200);
             break;
-            
         default:
             titleText.setString("GAME ABORTED");
             titleText.setFillColor(sf::Color::Yellow);
             messageText.setString("The game was terminated unexpectedly.");
-            backgroundColor = sf::Color(100, 100, 0, 200); // Amarelo escuro
+            backgroundColor = sf::Color(100, 100, 0, 200);
             break;
     }
-    
-    // Centralizar textos
+
     sf::FloatRect titleBounds = titleText.getLocalBounds();
     titleText.setPosition(
         (MSG_WINDOW_W - titleBounds.width) / 2,
         30
     );
-    
+
     sf::FloatRect messageBounds = messageText.getLocalBounds();
     messageText.setPosition(
         (MSG_WINDOW_W - messageBounds.width) / 2,
         80
     );
-    
-    sf::FloatRect instructionBounds = instructionText.getLocalBounds();
-    instructionText.setPosition(
-        (MSG_WINDOW_W - instructionBounds.width) / 2,
-        MSG_WINDOW_H - 40
-    );
-    
-    // Criar background colorido
+
     sf::RectangleShape background(sf::Vector2f(MSG_WINDOW_W, MSG_WINDOW_H));
     background.setFillColor(backgroundColor);
-    
-    // Loop da janela de mensagem
+
     while (messageWindow.isOpen()) {
         sf::Event event;
         while (messageWindow.pollEvent(event)) {
             if (event.type == sf::Event::Closed) {
                 messageWindow.close();
             }
-            
-            if (event.type == sf::Event::KeyPressed) {
-                if (event.key.code == sf::Keyboard::Space) {
-                    messageWindow.close();
-                }
-                if (event.key.code == sf::Keyboard::Escape) {
-                    messageWindow.close();
-                    exit(0); // Sair completamente do programa
-                }
-            }
         }
-        
+
         messageWindow.clear(sf::Color::Black);
         messageWindow.draw(background);
         messageWindow.draw(titleText);
         messageWindow.draw(messageText);
-        messageWindow.draw(instructionText);
         messageWindow.display();
     }
 }
