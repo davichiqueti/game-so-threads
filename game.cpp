@@ -4,16 +4,16 @@
 #include <vector>
 #include <bits/stdc++.h>
 #include "entities/Helicopter.h"
+#include "entities/Shooter.h"
 
 
-// --- Configurações ---
+// Window Config
 const int WINDOW_W = 1200;
 const int WINDOW_H = 600;
-
+// Game general config
 const int MS_MICROSECONDS_MULTIPLIER = 1000;
 const int SHOOTER_MOVEMENT_SLEEP = 20 * MS_MICROSECONDS_MULTIPLIER;
 const int SOLDIERS = 2;
-const int RELOAD_POSITION_X = 365;
 const int LOWER_LIMIT = WINDOW_H - 60;
 // Fixed positions
 sf::Vector2f rescue_point = {100.f, WINDOW_H - 70.f};
@@ -32,64 +32,7 @@ enum GameState {
 };
 GameState game_state;
 
-
-struct Bullet {
-    bool active = true;
-    int speed;
-    sf::Vector2f position;
-};
-
 std::vector<Bullet> bullets;
-
-class Shooter {
-public:
-    int ammo_capacity;
-	int ammo;
-    int fire_cooldown;
-    int reload_time;
-    sf::Vector2f position;
-    int initial_pos_x;
-	bool done = false;
-
-	Shooter(int ammo_capacity_, int fire_cooldown_, int reload_time, int pos_y_, int pos_x_)
-        :ammo_capacity(ammo_capacity_),
-        ammo(ammo_capacity_),
-        fire_cooldown(fire_cooldown_),
-        position(pos_x_, pos_y_),
-        initial_pos_x(pos_x_) {}
-
-	Bullet shoot() {
-        ammo--;
-        Bullet bullet;
-        bullet.position = this->position;
-        bullet.position.x += 38;
-        bullet.speed = 5;
-        // Pushing new bullet to the bullets array
-        return bullet;
-    };
-
-	void pass_bridge(bool reload_direction) {
-        // Locking bridge to other shooter dont pass
-        if (reload_direction) {
-            while (position.x > RELOAD_POSITION_X) {
-                usleep(SHOOTER_MOVEMENT_SLEEP);
-                this->position.x -= 5;
-            }
-            this->position.x = RELOAD_POSITION_X;
-        } else {
-            while (this->position.x < initial_pos_x) {
-                usleep(SHOOTER_MOVEMENT_SLEEP);
-                this->position.x += 5;
-            }
-            position.x = initial_pos_x;
-        }
-	}
-
-    void reload() {
-        usleep(reload_time);
-        ammo = ammo_capacity;
-    }
-};
 
 void *helicopter_func(void *arg) {
     Helicopter *helicopter = (Helicopter *)arg;
@@ -126,7 +69,7 @@ void *shooter_func(void *arg) {
 		else {
             // Moving the shooter to the ammo deposit blocking the bridge
             pthread_mutex_lock(&bridge_mutex);
-			shooter->pass_bridge(true);
+			shooter->passBridge(true);
             pthread_mutex_unlock(&bridge_mutex);
             // Locking reloader to other shooter dont pass
             pthread_mutex_lock(&reloader_mutex);
@@ -134,7 +77,7 @@ void *shooter_func(void *arg) {
             pthread_mutex_unlock(&reloader_mutex);
             // Moving the shooter back to initial position blocking the bridge
             pthread_mutex_lock(&bridge_mutex);
-            shooter->pass_bridge(false);
+            shooter->passBridge(false);
             pthread_mutex_unlock(&bridge_mutex);
 		}
 	}
