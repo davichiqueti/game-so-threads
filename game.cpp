@@ -13,7 +13,7 @@ const int WINDOW_H = 600;
 // Game general config
 const int MS_MICROSECONDS_MULTIPLIER = 1000;
 const int SHOOTER_MOVEMENT_SLEEP = 20 * MS_MICROSECONDS_MULTIPLIER;
-const int SOLDIERS = 2;
+const int SOLDIERS_NUM = 10;
 const int LOWER_LIMIT = WINDOW_H - 60;
 const int FRAME_DELAY_US = 16000;    // ~60 FPS
 // Fixed positions
@@ -33,7 +33,8 @@ enum GameState {
     GAME_WIN,
     GAME_OVER_HELICOPTER_SHOOTED,
     GAME_OVER_HELICOPTER_COLLIDED,
-    GAME_OVER_HELICOPTER_TOO_HIGH
+    GAME_OVER_HELICOPTER_TOO_HIGH,
+    GAME_ABORTED,
 };
 GameState game_state;
 
@@ -75,20 +76,20 @@ void *helicopter_func(void *arg) {
 }
 
 void *shooter_func(void *arg) {
-	Shooter *shooter = (Shooter *)arg;
-	while (!shooter->done) {
-		if (shooter->ammo > 0) {
-			usleep(shooter->fire_cooldown);
+    Shooter *shooter = (Shooter *)arg;
+    while (!shooter->done) {
+        if (shooter->ammo > 0) {
+            usleep(shooter->fire_cooldown);
             Bullet bullet = shooter->shoot();
             // Pushing new bullet to the bullets vector
             pthread_mutex_lock(&bullets_mutex);
             bullets.push_back(bullet);
             pthread_mutex_unlock(&bullets_mutex);
-		}
-		else {
+        }
+        else {
             // Moving the shooter to the ammo deposit blocking the bridge
             pthread_mutex_lock(&bridge_mutex);
-			shooter->passBridge(true);
+            shooter->passBridge(true);
             pthread_mutex_unlock(&bridge_mutex);
             // Locking reloader to other shooter dont pass
             pthread_mutex_lock(&reloader_mutex);
@@ -98,9 +99,9 @@ void *shooter_func(void *arg) {
             pthread_mutex_lock(&bridge_mutex);
             shooter->passBridge(false);
             pthread_mutex_unlock(&bridge_mutex);
-		}
-	}
-	return nullptr;
+        }
+    }
+    return nullptr;
 }
 
 
@@ -118,104 +119,6 @@ void *bullets_manager_func(void *) {
         usleep(FRAME_DELAY_US);
     }
     return nullptr;
-}
-
-void showGameMessage(GameState final_state) {
-    const int MSG_WINDOW_W = 400;
-    const int MSG_WINDOW_H = 200;
-
-    sf::RenderWindow messageWindow(
-        sf::VideoMode(MSG_WINDOW_W, MSG_WINDOW_H), 
-        "Game Result",
-        sf::Style::Titlebar | sf::Style::Close
-    );
-
-    messageWindow.setPosition(
-        sf::Vector2i(
-            (sf::VideoMode::getDesktopMode().width - MSG_WINDOW_W) / 2,
-            (sf::VideoMode::getDesktopMode().height - MSG_WINDOW_H) / 2
-        )
-    );
-
-    sf::Font font;
-    if (!font.loadFromFile("assets/fonts/OpenSans-Regular.ttf")) {
-        std::cerr << "Warning: Could not load font, using default\n";
-    }
-    
-    sf::Text titleText, messageText;
-    
-    titleText.setFont(font);
-    titleText.setCharacterSize(24);
-    titleText.setFillColor(sf::Color::White);
-    titleText.setStyle(sf::Text::Bold);
-    
-    messageText.setFont(font);
-    messageText.setCharacterSize(16);
-    messageText.setFillColor(sf::Color::White);
-
-    sf::Color backgroundColor;
-    switch (final_state) {
-        case GAME_WIN:
-            titleText.setString("VICTORY!");
-            titleText.setFillColor(sf::Color::Green);
-            messageText.setString("Congratulations!\nAll soldiers were successfully rescued!");
-            backgroundColor = sf::Color(0, 100, 0, 200);
-            break;
-        case GAME_OVER_HELICOPTER_SHOOTED:
-            titleText.setString("GAME OVER");
-            titleText.setFillColor(sf::Color::Red);
-            messageText.setString("Mission Failed!\nThe helicopter was shot down by enemy fire.");
-            backgroundColor = sf::Color(100, 0, 0, 200);
-            break;
-        case GAME_OVER_HELICOPTER_COLLIDED:
-            titleText.setString("GAME OVER");
-            titleText.setFillColor(sf::Color::Red);
-            messageText.setString("Mission Failed!\nThe helicopter collided with an obstacle.");
-            backgroundColor = sf::Color(100, 0, 0, 200);
-            break;
-        case GAME_OVER_HELICOPTER_TOO_HIGH:
-            titleText.setString("GAME OVER");
-            titleText.setFillColor(sf::Color::Red);
-            messageText.setString("Mission Failed!\nThe helicopter flew too high and was lost.");
-            backgroundColor = sf::Color(100, 0, 0, 200);
-            break;
-        default:
-            titleText.setString("GAME ABORTED");
-            titleText.setFillColor(sf::Color::Yellow);
-            messageText.setString("The game was terminated unexpectedly.");
-            backgroundColor = sf::Color(100, 100, 0, 200);
-            break;
-    }
-
-    sf::FloatRect titleBounds = titleText.getLocalBounds();
-    titleText.setPosition(
-        (MSG_WINDOW_W - titleBounds.width) / 2,
-        30
-    );
-
-    sf::FloatRect messageBounds = messageText.getLocalBounds();
-    messageText.setPosition(
-        (MSG_WINDOW_W - messageBounds.width) / 2,
-        80
-    );
-
-    sf::RectangleShape background(sf::Vector2f(MSG_WINDOW_W, MSG_WINDOW_H));
-    background.setFillColor(backgroundColor);
-
-    while (messageWindow.isOpen()) {
-        sf::Event event;
-        while (messageWindow.pollEvent(event)) {
-            if (event.type == sf::Event::Closed) {
-                messageWindow.close();
-            }
-        }
-
-        messageWindow.clear(sf::Color::Black);
-        messageWindow.draw(background);
-        messageWindow.draw(titleText);
-        messageWindow.draw(messageText);
-        messageWindow.display();
-    }
 }
 
 template<typename DrawableA, typename DrawableB>
@@ -275,7 +178,7 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
         pthread_create(&threads[i], nullptr, shooter_func, shooters[i]);
     }
 
-    int soldiers_waiting = SOLDIERS;
+    int soldiers_waiting = SOLDIERS_NUM;
     int rescued_soldiers = 0;
     sf::Texture soldier_texture;
     soldier_texture.loadFromFile("assets/images/soldier.png");
@@ -284,27 +187,27 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
     window.draw(backgroundSprite);
     window.setFramerateLimit(60);
 
-	sf::Texture shooterTexture;
-	if (!shooterTexture.loadFromFile("assets/images/shooter.png")) {
-    	std::cerr << "Erro ao carregar shooter.png\n";
-	}
+    sf::Texture shooterTexture;
+    if (!shooterTexture.loadFromFile("assets/images/shooter.png")) {
+        std::cerr << "Erro ao carregar shooter.png\n";
+    }
     std::vector<sf::Sprite> shooters_sprites;
     shooters_sprites.reserve(shooters.size());
     for (size_t i = 0; i < shooters.size(); ++i) {
-		shooters_sprites.emplace_back(shooterTexture);
+        shooters_sprites.emplace_back(shooterTexture);
     }
 
     // Creating helicopter and a sprite to It
-	sf::Texture helicopter_texture;
-	helicopter_texture.loadFromFile("assets/images/helicopter.png");
-	sf::Sprite helicopter_sprite(helicopter_texture);
-	helicopter_sprite.setOrigin(helicopter_texture.getSize().x/2.f, helicopter_texture.getSize().y/2.f);
+    sf::Texture helicopter_texture;
+    helicopter_texture.loadFromFile("assets/images/helicopter.png");
+    sf::Sprite helicopter_sprite(helicopter_texture);
+    helicopter_sprite.setOrigin(helicopter_texture.getSize().x/2.f, helicopter_texture.getSize().y/2.f);
 
     // Flag
     sf::Texture flag_texture;
     flag_texture.loadFromFile("assets/images/flag.png");
     sf::Sprite flag_sprite(flag_texture);
-	flag_sprite.setPosition(WINDOW_W - 120, LOWER_LIMIT - 80);
+    flag_sprite.setPosition(WINDOW_W - 120, LOWER_LIMIT - 80);
 
     // 4) Loop de renderização
     game_state = GAME_RUNNING;
@@ -316,6 +219,7 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
         while (window.pollEvent(window_event)) {
             if (window_event.type == sf::Event::Closed) {
                 window.close();
+                game_state = GAME_ABORTED;
                 break;
             }
         }
@@ -326,14 +230,14 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
         helicopter_control.right = sf::Keyboard::isKeyPressed(sf::Keyboard::Right);
         sf::Vector2f heli_pos = helicopter->getPosition();
         pthread_mutex_unlock(&helicopter_mutex);
-		helicopter_sprite.setPosition(heli_pos);
+        helicopter_sprite.setPosition(heli_pos);
         window.draw(helicopter_sprite);
 
         // Drawn soldiers
         for (int i = 0; i < soldiers_waiting; ++i) {
             sf::Sprite sprite;
             sprite.setTexture(soldier_texture);
-            float dx = SOLDIERS - i * 7;
+            float dx = SOLDIERS_NUM - i * 7;
             float dy = (i % 2 == 0) ? 5 : 0;
             sprite.setPosition(rescue_point.x + dx - 15, rescue_point.y - 10 + dy);
             window.draw(sprite);
@@ -350,14 +254,14 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
             bool soldier_dropped = helicopter->dropSoldier();
             if (soldier_dropped) {
                 rescued_soldiers++;
-                if (rescued_soldiers == SOLDIERS) {
+                if (rescued_soldiers == SOLDIERS_NUM) {
                     game_state = GAME_WIN;
                     break;
                 }
             }
         }
 
-		window.draw(helicopter_sprite);
+        window.draw(helicopter_sprite);
 
         pthread_mutex_lock(&shooters_mutex);
         for (size_t i = 0; i < shooters.size(); ++i) {
@@ -388,12 +292,12 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
 
         // Stats display
         std::ostringstream stats;
-        stats << "Soldiers Rescued (" << rescued_soldiers << "/" << SOLDIERS<< ")\n";
+        stats << "Soldiers Rescued (" << rescued_soldiers << "/" << SOLDIERS_NUM<< ")\n";
         stats << "Helicopter Occupation (" << helicopter->getOccupation() << "/" << helicopter->getCapacity() << ")";
         statsText.setString(stats.str());
         window.draw(statsText);
         // Displaying all elements on window
-        window.display();        
+        window.display();
     }
 
     window.close();
@@ -406,8 +310,22 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
     for (auto& t: threads) pthread_join(t, nullptr);
     pthread_join(bullets_manager_thread, nullptr);
 
-    showGameMessage(game_state);
-
+    switch (game_state) {
+        case GAME_WIN:
+            std::cout << "\n\n" << "GAME WIN" << "\n\n" << "All soldiers were rescued!" << "\n\n";
+            break;
+        case GAME_OVER_HELICOPTER_COLLIDED:
+            std::cout << "\n\n" << "GAME OVER" << "\n" << "The Helicoper collided with a object." << "\n\n";
+            break;
+        case GAME_OVER_HELICOPTER_SHOOTED:
+            std::cout << "\n\n" << "GAME OVER" << "\n\n" << "The Helicoper was shooted." << "\n\n";
+            break;
+        case GAME_OVER_HELICOPTER_TOO_HIGH:
+            std::cout << "\n\n" << "GAME OVER" << "\n\n" << "The Helicoper went too high." << "\n\n";
+        default:
+            std::cout << "\n\n" << "Game aborted" << "\n\n";
+            break;
+    }
     return 0;
 }
 
