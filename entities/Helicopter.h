@@ -7,11 +7,11 @@
 
 class Helicopter {
 public:
-    float step;
+    float speed;
 
-    Helicopter(float startX = 100.f, float startY = 100.f, float moveStep = 20.f)
+    Helicopter(float startX = 100.f, float startY = 100.f, float movementSpeed = 3.f)
     : position(startX, startY)
-    , step(moveStep)
+    , speed(movementSpeed)
     , capacity(1)
     , occupation(0)
     {}

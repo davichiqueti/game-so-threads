@@ -19,10 +19,10 @@ public:
     int reload_time;
     sf::Vector2f position;
     int initial_pos_x;
-    int speed = 5;
+    float speed;
 	bool done = false;
 
-	Shooter(int ammo_capacity_, int fire_cooldown_, int reload_time, int pos_y_, int pos_x_, int speed_ = 5)
+	Shooter(int ammo_capacity_, int fire_cooldown_, int reload_time, int pos_y_, int pos_x_, int speed_ = 4.f)
         :ammo_capacity(ammo_capacity_),
         ammo(ammo_capacity_),
         fire_cooldown(fire_cooldown_),
