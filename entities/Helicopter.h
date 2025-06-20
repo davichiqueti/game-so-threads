@@ -9,7 +9,7 @@ class Helicopter {
 public:
     float speed;
 
-    Helicopter(float startX = 100.f, float startY = 100.f, float movementSpeed = 3.f)
+    Helicopter(float startX, float startY, float movementSpeed)
     : position(startX, startY)
     , speed(movementSpeed)
     , capacity(1)

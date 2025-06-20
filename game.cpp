@@ -10,14 +10,14 @@
 // Window Config
 const int WINDOW_W = 1200;
 const int WINDOW_H = 600;
-// Game general config
+// Time Manipulation utils
 const int MS_MICROSECONDS_MULTIPLIER = 1000;
-const int SHOOTER_MOVEMENT_SLEEP = 20 * MS_MICROSECONDS_MULTIPLIER;
+const int FRAME_DELAY_US = 16000;    // ~60 FPS
+// Game general config
+const float SHOOTER_MOVEMENT_SPEED = 4.f;
 const int SOLDIERS_NUM = 10;
 const int LOWER_LIMIT = WINDOW_H - 60;
-const int FRAME_DELAY_US = 16000;    // ~60 FPS
-// Fixed positions
-sf::Vector2f rescue_point = {100.f, WINDOW_H - 70.f};
+const sf::Vector2f RESCUE_POINT = {100.f, WINDOW_H - 70.f};
 // Mutexes used to handle critical sessions
 pthread_mutex_t bridge_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t reloader_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -29,6 +29,7 @@ pthread_mutex_t helicopter_mutex = PTHREAD_MUTEX_INITIALIZER;
 std::vector<Bullet> bullets;
 
 enum GameState {
+    GAME_INITIALIZING,
     GAME_RUNNING,
     GAME_WIN,
     GAME_OVER_HELICOPTER_SHOOTED,
@@ -36,7 +37,7 @@ enum GameState {
     GAME_OVER_HELICOPTER_TOO_HIGH,
     GAME_ABORTED,
 };
-GameState game_state;
+GameState game_state = GAME_INITIALIZING;
 
 struct HelicopterControl {
     bool up = false;
@@ -55,7 +56,7 @@ void *helicopter_func(void *arg) {
         if (helicopter_control.up) {
             pos.y -= helicopter->speed;
         }
-        if (helicopter_control.down && pos.y < LOWER_LIMIT - helicopter->speed) {
+        if (helicopter_control.down) {
             pos.y += helicopter->speed;
         }
         if (helicopter_control.left && pos.x > helicopter->speed) {
@@ -68,7 +69,8 @@ void *helicopter_func(void *arg) {
         pthread_mutex_unlock(&helicopter_mutex);
         if (pos.y <= 0) {
             game_state = GAME_OVER_HELICOPTER_TOO_HIGH;
-            break;
+        } else if (pos.y >= LOWER_LIMIT) {
+            game_state = GAME_OVER_HELICOPTER_COLLIDED;
         }
         usleep(FRAME_DELAY_US); // ~60 FPS
     }
@@ -77,7 +79,7 @@ void *helicopter_func(void *arg) {
 
 void *shooter_func(void *arg) {
     Shooter *shooter = (Shooter *)arg;
-    while (!shooter->done) {
+    while (game_state == GAME_RUNNING) {
         if (shooter->ammo > 0) {
             usleep(shooter->fire_cooldown);
             Bullet bullet = shooter->shoot();
@@ -89,7 +91,7 @@ void *shooter_func(void *arg) {
         else {
             // Moving the shooter to the ammo deposit blocking the bridge
             pthread_mutex_lock(&bridge_mutex);
-            shooter->passBridge(true);
+            shooter->move(RELOAD_POSITION_X);
             pthread_mutex_unlock(&bridge_mutex);
             // Locking reloader to other shooter dont pass
             pthread_mutex_lock(&reloader_mutex);
@@ -97,7 +99,7 @@ void *shooter_func(void *arg) {
             pthread_mutex_unlock(&reloader_mutex);
             // Moving the shooter back to initial position blocking the bridge
             pthread_mutex_lock(&bridge_mutex);
-            shooter->passBridge(false);
+            shooter->move(shooter->initial_pos_x);
             pthread_mutex_unlock(&bridge_mutex);
         }
     }
@@ -127,7 +129,31 @@ bool collide(const DrawableA&  obj1, const DrawableB& obj2) {
 }
 
 int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reload_time) {
-    // Graficos
+    // Creating game entities
+    std::vector<Shooter*> shooters;
+    shooters.push_back(
+        new Shooter(
+            shooter_ammo_capacity, 
+            shooter_fire_cooldown,
+            shooter_reload_time,
+            SHOOTER_MOVEMENT_SPEED,
+            (WINDOW_H - 115),
+            (WINDOW_W - 325)
+        )
+    );
+    shooters.push_back(
+        new Shooter(
+            shooter_ammo_capacity,
+            shooter_fire_cooldown,
+            shooter_reload_time,
+            SHOOTER_MOVEMENT_SPEED,
+            (WINDOW_H - 115),
+            (WINDOW_W - (325 * 2))
+        )
+    );
+    Helicopter *helicopter = new Helicopter(120.f, 120.f, 12.f);
+
+    // Graphical
     sf::Font font;
     font.loadFromFile("assets/fonts/OpenSans-Regular.ttf");
     sf::Text statsText;
@@ -143,40 +169,6 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
     float scaleX = static_cast<float>(WINDOW_W) / backgroundTexture.getSize().x;
     float scaleY = static_cast<float>(WINDOW_H) / backgroundTexture.getSize().y;
     backgroundSprite.setScale(scaleX, scaleY);
-
-    // Creating game entities
-    std::vector<Shooter*> shooters;
-    shooters.push_back(
-        new Shooter(
-            shooter_ammo_capacity, 
-            shooter_fire_cooldown,
-            shooter_reload_time,
-            (WINDOW_H - 115),
-            (WINDOW_W - 325)
-        )
-    );
-    shooters.push_back(
-        new Shooter(
-            shooter_ammo_capacity,
-            shooter_fire_cooldown,
-            shooter_reload_time,
-            (WINDOW_H - 115),
-            (WINDOW_W - (325 * 2))
-        )
-    );
-    Helicopter *helicopter = new Helicopter(400.f, 300.f, 20.f);
-
-    // Creating threads
-    pthread_t bullets_manager_thread;
-    pthread_create(&bullets_manager_thread, nullptr, bullets_manager_func, &bullets);
-
-    pthread_t helicopter_thread;
-    pthread_create(&helicopter_thread, nullptr, helicopter_func, helicopter);
-
-    std::vector<pthread_t> threads(shooters.size());
-    for (size_t i = 0; i < shooters.size(); ++i) {
-        pthread_create(&threads[i], nullptr, shooter_func, shooters[i]);
-    }
 
     int soldiers_waiting = SOLDIERS_NUM;
     int rescued_soldiers = 0;
@@ -197,24 +189,47 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
         shooters_sprites.emplace_back(shooterTexture);
     }
 
-    // Creating helicopter and a sprite to It
     sf::Texture helicopter_texture;
     helicopter_texture.loadFromFile("assets/images/helicopter.png");
     sf::Sprite helicopter_sprite(helicopter_texture);
     helicopter_sprite.setOrigin(helicopter_texture.getSize().x/2.f, helicopter_texture.getSize().y/2.f);
 
-    // Flag
     sf::Texture flag_texture;
     flag_texture.loadFromFile("assets/images/flag.png");
     sf::Sprite flag_sprite(flag_texture);
-    flag_sprite.setPosition(WINDOW_W - 120, LOWER_LIMIT - 80);
+    flag_sprite.setPosition(WINDOW_W - 130, LOWER_LIMIT - 200);
 
-    // 4) Loop de renderização
+    sf::Texture platform_texture;
+    platform_texture.loadFromFile("assets/images/platform.png");
+    sf::Sprite platform_sprite(platform_texture);
+    platform_sprite.setPosition(WINDOW_W - 160, LOWER_LIMIT - 90);
+
+    sf::Texture ammo_texture;
+    ammo_texture.loadFromFile("assets/images/ammo.png");
+    sf::Sprite ammo_sprite(ammo_texture);
+    ammo_sprite.setPosition(RELOAD_POSITION_X - 50, LOWER_LIMIT - 40);
+
+    // Starting threads and game loop
     game_state = GAME_RUNNING;
+    pthread_t bullets_manager_thread;
+    pthread_create(&bullets_manager_thread, nullptr, bullets_manager_func, &bullets);
+
+    pthread_t helicopter_thread;
+    pthread_create(&helicopter_thread, nullptr, helicopter_func, helicopter);
+
+    std::vector<pthread_t> threads(shooters.size());
+    for (size_t i = 0; i < shooters.size(); ++i) {
+        pthread_create(&threads[i], nullptr, shooter_func, shooters[i]);
+    }
+
     while (window.isOpen() && game_state == GAME_RUNNING) {
+        // Cleaning window and redrawing simple sprites
         window.clear();
         window.draw(backgroundSprite);
+        window.draw(platform_sprite);
         window.draw(flag_sprite);
+        window.draw(ammo_sprite);
+        // Polling window events to be processed
         sf::Event window_event;
         while (window.pollEvent(window_event)) {
             if (window_event.type == sf::Event::Closed) {
@@ -233,13 +248,20 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
         helicopter_sprite.setPosition(heli_pos);
         window.draw(helicopter_sprite);
 
+        if (collide(helicopter_sprite, platform_sprite)) {
+            game_state = GAME_OVER_HELICOPTER_COLLIDED;
+        }
+        if (collide(helicopter_sprite, ammo_sprite)) {
+            game_state = GAME_OVER_HELICOPTER_COLLIDED;
+        }
+
         // Drawn soldiers
         for (int i = 0; i < soldiers_waiting; ++i) {
             sf::Sprite sprite;
             sprite.setTexture(soldier_texture);
             float dx = SOLDIERS_NUM - i * 7;
             float dy = (i % 2 == 0) ? 5 : 0;
-            sprite.setPosition(rescue_point.x + dx - 15, rescue_point.y - 10 + dy);
+            sprite.setPosition(RESCUE_POINT.x + dx - 15, RESCUE_POINT.y - 10 + dy);
             window.draw(sprite);
             if (collide(sprite, helicopter_sprite)) {
                 bool soldier_boarded = helicopter->boardSoldier();
@@ -248,8 +270,7 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
                 }
             }
         }
-
-        // Desembarque automático
+        // Checking stop on rescue flag
         if (collide(helicopter_sprite, flag_sprite)) {
             bool soldier_dropped = helicopter->dropSoldier();
             if (soldier_dropped) {
@@ -261,9 +282,6 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
             }
         }
 
-        window.draw(helicopter_sprite);
-
-        pthread_mutex_lock(&shooters_mutex);
         for (size_t i = 0; i < shooters.size(); ++i) {
             Shooter* shooter = shooters[i];
             // Converte pos_x, pos_y para pixels
@@ -274,7 +292,6 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
                 break;
             }
         }
-        pthread_mutex_unlock(&shooters_mutex);
 
         // Drawing bullets
         pthread_mutex_lock(&bullets_mutex);
@@ -301,15 +318,6 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
     }
 
     window.close();
-    for (auto& shooter: shooters) {
-        shooter->done = true;
-    }
-
-    // Waiting each thread to die
-    pthread_join(helicopter_thread, nullptr);
-    for (auto& t: threads) pthread_join(t, nullptr);
-    pthread_join(bullets_manager_thread, nullptr);
-
     switch (game_state) {
         case GAME_WIN:
             std::cout << "\n\n" << "GAME WIN" << "\n\n" << "All soldiers were rescued!" << "\n\n";
@@ -326,6 +334,11 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
             std::cout << "\n\n" << "Game aborted" << "\n\n";
             break;
     }
+    // Waiting each thread to die
+    pthread_join(helicopter_thread, nullptr);
+    for (auto& t: threads) pthread_join(t, nullptr);
+    pthread_join(bullets_manager_thread, nullptr);
+    
     return 0;
 }
 
