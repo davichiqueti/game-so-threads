@@ -152,6 +152,8 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
         )
     );
     Helicopter *helicopter = new Helicopter(120.f, 120.f, 12.f);
+    int soldiers_waiting = SOLDIERS_NUM;
+    int rescued_soldiers = 0;
 
     // Graphical
     sf::Font font;
@@ -170,8 +172,6 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
     float scaleY = static_cast<float>(WINDOW_H) / backgroundTexture.getSize().y;
     backgroundSprite.setScale(scaleX, scaleY);
 
-    int soldiers_waiting = SOLDIERS_NUM;
-    int rescued_soldiers = 0;
     sf::Texture soldier_texture;
     soldier_texture.loadFromFile("assets/images/soldier.png");
 
@@ -284,7 +284,6 @@ int game(int shooter_ammo_capacity, int shooter_fire_cooldown, int shooter_reloa
 
         for (size_t i = 0; i < shooters.size(); ++i) {
             Shooter* shooter = shooters[i];
-            // Converte pos_x, pos_y para pixels
             shooters_sprites[i].setPosition(shooter->position);
             window.draw(shooters_sprites[i]);
             if (collide(shooters_sprites[i], helicopter_sprite)) {
