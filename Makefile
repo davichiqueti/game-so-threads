@@ -1,11 +1,10 @@
 
 install:
-	sudo apt update
-	sudo apt install g++ libsfml-dev
+	sudo apt-get install libsfml-dev
+	sudo apt-get install build-essential
 
 compile:
 	g++ game.cpp -o game.exe -lsfml-graphics -lsfml-window -lsfml-system
-	chmod +x ./game.exe
 
 run:
 	./game.exe
