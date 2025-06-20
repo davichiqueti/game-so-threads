@@ -17,6 +17,7 @@ const int FRAME_DELAY_US = 16000;    // ~60 FPS
 const float SHOOTER_MOVEMENT_SPEED = 4.f;
 const int SOLDIERS_NUM = 10;
 const int LOWER_LIMIT = WINDOW_H - 60;
+const int RELOAD_POSITION_X = 375;
 const sf::Vector2f RESCUE_POINT = {100.f, WINDOW_H - 70.f};
 // Mutexes used to handle critical sessions
 pthread_mutex_t bridge_mutex = PTHREAD_MUTEX_INITIALIZER;

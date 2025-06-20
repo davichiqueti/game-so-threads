@@ -2,9 +2,6 @@
 #include <bits/stdc++.h>
 
 
-const int RELOAD_POSITION_X = 375;
-
-
 struct Bullet {
     bool active = true;
     int speed = 5;
@@ -47,23 +44,6 @@ Bullet Shooter::shoot() {
     // Pushing new bullet to the bullets array
     return bullet;
 };
-
-void Shooter::passBridge(bool left_direction) {
-    // Locking bridge to other shooter dont pass
-    if (left_direction) {
-        while (position.x > RELOAD_POSITION_X) {
-            this->position.x -= speed;
-            usleep(16000);
-        }
-        this->position.x = RELOAD_POSITION_X;
-    } else {
-        while (this->position.x < initial_pos_x) {
-            this->position.x += speed;
-            usleep(16000);
-        }
-        position.x = initial_pos_x;
-    }
-}
 
 void Shooter::move(int target_position_x) {
     // Locking bridge to other shooter dont pass
