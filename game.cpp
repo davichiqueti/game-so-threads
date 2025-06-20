@@ -21,7 +21,6 @@ const sf::Vector2f RESCUE_POINT = {100.f, WINDOW_H - 70.f};
 // Mutexes used to handle critical sessions
 pthread_mutex_t bridge_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t reloader_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t shooters_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t bullets_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t helicopter_mutex = PTHREAD_MUTEX_INITIALIZER;
 
