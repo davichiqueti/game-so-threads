@@ -83,6 +83,6 @@ void Shooter::move(int target_position_x) {
 }
 
 void Shooter::reload() {
-    usleep(16000);
+    usleep(fire_cooldown);
     ammo = ammo_capacity;
 }
