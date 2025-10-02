@@ -2,7 +2,9 @@
 
 ## Visão Geral
 
-Este é um jogo simples de simulação onde você controla um helicóptero para resgatar soldados enquanto evita tiros e obstáculos. Leve todos os soldados até a bandeira 
+Este é um jogo simples de simulação onde você controla um helicóptero para resgatar soldados enquanto evita tiros e obstáculos.
+
+Feito como um trabalho prático para a cadeira de Sistemas Operacionais para o curso de bacharelado em Sistemas de Informação da UFSC.
 
 - **Helicóptero:** Controlado pelo jogador usando as setas do teclado.
 - **Soldados:** Devem ser resgatados e levados até a bandeira.
